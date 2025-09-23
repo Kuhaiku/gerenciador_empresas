@@ -7,7 +7,7 @@ const nodemailer = require('nodemailer');
 const bodyParser = require('body-parser');
 const session = require('express-session');
 const path = require('path');
-const MercadoPago = require('mercadopago');
+const MercadoPago = require('mercadopago'); // A classe é importada com letra maiúscula
 
 const app = express();
 const port = 3000;
@@ -48,7 +48,7 @@ const transporter = nodemailer.createTransport({
     }
 });
 
-// Configuração do Mercado Pago
+// Configuração do Mercado Pago (Sintaxe correta para a versão mais recente)
 const mercadopago = new MercadoPago(process.env.MERCADOPAGO_ACCESS_TOKEN);
 
 // Middlewares
