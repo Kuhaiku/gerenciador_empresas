@@ -1,0 +1,10 @@
+/* Estilos específicos da página de assinatura */
+.container {
+    width: 400px;
+    text-align: center;
+}
+p {
+    font-size: 1.2rem;
+    color: #555;
+    margin: 1rem 0;
+}
