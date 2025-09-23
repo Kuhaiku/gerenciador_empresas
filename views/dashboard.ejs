@@ -15,6 +15,19 @@
         <h2>Bem-vindo, <%= email %>!</h2>
         <p>Usuário logado.</p>
         <a href="/logout">Sair</a>
+        <hr>
+
+        <h3>Status da Assinatura</h3>
+        <% if (subscriptionStatus === 'active') { %>
+            <p style="color: green; font-weight: bold;">Plano Ativo! Você já pode gerenciar suas empresas.</p>
+        <% } else if (subscriptionStatus === 'pending') { %>
+            <p style="color: orange; font-weight: bold;">Assinatura Pendente. Por favor, finalize o pagamento no Mercado Pago.</p>
+        <% } else { %>
+            <p>Seu plano está inativo.</p>
+            <a href="/subscription">
+                <button>Assinar Agora</button>
+            </a>
+        <% } %>
     </div>
 </body>
 </html>

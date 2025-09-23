@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assinar o Serviço</title>
+    <link rel="stylesheet" href="/css/global.css">
+    <link rel="stylesheet" href="public/css/subscription.css">
+</head>
+<body>
+    <div class="container">
+        <% if (message) { %>
+            <div class="message-box"><%= message %></div>
+        <% } %>
+        <h2>Assine o Serviço</h2>
+        <p>Plano Mensal: R$ 60,00</p>
+        <form action="/create-subscription" method="POST">
+            <button type="submit">Assinar com Mercado Pago</button>
+        </form>
+        <a href="/dashboard">Voltar para o Dashboard</a>
+    </div>
+</body>
+</html>
