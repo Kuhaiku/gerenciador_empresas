@@ -54,7 +54,10 @@ app.use(session({
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: true,
-    cookie: { secure: false } // 'true' em produção com HTTPS
+    cookie: {
+        secure: false, // 'true' em produção com HTTPS
+        maxAge: 3600000 // Padrão: 1 hora em milissegundos
+    }
 }));
 
 // Roteamento de arquivos estáticos (CSS, JS, imagens, etc.)
@@ -78,7 +81,7 @@ app.get('/verify-email', (req, res) => {
 });
 app.get('/dashboard', (req, res) => {
     if (req.session.loggedin) {
-        const message = req.session.message || null; 
+        const message = req.session.message || null;
         req.session.message = null;
         res.render('dashboard', { message: message, email: req.session.email });
     } else {
@@ -114,14 +117,31 @@ app.post('/register', async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, 10);
         const code = Math.floor(100000 + Math.random() * 900000).toString();
         const verificationToken = await bcrypt.hash(code, 10);
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 horas em milissegundos
 
-        await connection.execute('INSERT INTO users (email, password, verification_code) VALUES (?, ?, ?)', [email, hashedPassword, verificationToken]);
+        await connection.execute('INSERT INTO users (email, password, verification_code, verification_expires_at) VALUES (?, ?, ?, ?)', [email, hashedPassword, verificationToken, expiresAt]);
 
         const mailOptions = {
             from: process.env.EMAIL_USER,
             to: email,
             subject: 'Código de Verificação de Conta',
-            text: `Seu código de verificação é: ${code}`
+            html: `
+                <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f4; text-align: center;">
+                    <div style="max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; background-color: #fff;">
+                        <h2 style="color: #333;">Verificação de Conta</h2>
+                        <p style="color: #555; font-size: 16px;">
+                            Olá, <br>
+                            Obrigado por se registrar! Use o código abaixo para verificar sua conta.
+                        </p>
+                        <div style="background-color: #007bff; color: #fff; padding: 15px; border-radius: 5px; margin-top: 20px; font-size: 24px; font-weight: bold;">
+                            ${code}
+                        </div>
+                        <p style="color: #888; font-size: 14px; margin-top: 20px;">
+                            Este código é válido por 24 horas.
+                        </p>
+                    </div>
+                </div>
+            `
         };
 
         transporter.sendMail(mailOptions, (error, info) => {
@@ -154,10 +174,15 @@ app.post('/verify-email', async (req, res) => {
         }
 
         const user = rows[0];
+        // Checa se o código já expirou
+        if (new Date() > user.verification_expires_at) {
+            req.session.message = 'Código de verificação expirado. Por favor, registre-se novamente.';
+            return res.redirect('/register');
+        }
         const isMatch = await bcrypt.compare(code, user.verification_code);
 
         if (isMatch) {
-            await connection.execute('UPDATE users SET verified = 1, verification_code = NULL WHERE email = ?', [email]);
+            await connection.execute('UPDATE users SET verified = 1, verification_code = NULL, verification_expires_at = NULL WHERE email = ?', [email]);
             req.session.message = 'E-mail verificado com sucesso. Você já pode fazer login.';
             res.redirect('/');
         } else {
@@ -196,6 +221,16 @@ app.post('/login', async (req, res) => {
             req.session.loggedin = true;
             req.session.email = email;
             req.session.message = 'Bem-vindo(a)!';
+
+            // Lógica para 'Manter Conectado'
+            if (req.body.rememberMe) {
+                // Se o checkbox for marcado, estenda a sessão para 30 dias
+                req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000;
+            } else {
+                // Se não, volte para a configuração padrão (1 hora)
+                req.session.cookie.maxAge = 3600000;
+            }
+
             res.redirect('/dashboard');
         } else {
             req.session.message = 'E-mail ou senha incorretos.';
@@ -224,14 +259,31 @@ app.post('/forgot-password', async (req, res) => {
         const user = rows[0];
         const code = Math.floor(100000 + Math.random() * 900000).toString();
         const resetToken = await bcrypt.hash(code, 10);
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-        await connection.execute('UPDATE users SET reset_token = ? WHERE id = ?', [resetToken, user.id]);
+        await connection.execute('UPDATE users SET reset_token = ?, reset_expires_at = ? WHERE id = ?', [resetToken, expiresAt, user.id]);
 
         const mailOptions = {
             from: process.env.EMAIL_USER,
             to: email,
             subject: 'Código de Recuperação de Senha',
-            text: `Seu código para redefinir a senha é: ${code}`
+            html: `
+                <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f4; text-align: center;">
+                    <div style="max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; background-color: #fff;">
+                        <h2 style="color: #333;">Recuperação de Senha</h2>
+                        <p style="color: #555; font-size: 16px;">
+                            Olá, <br>
+                            Você solicitou a recuperação de sua senha. Use o código abaixo para redefini-la.
+                        </p>
+                        <div style="background-color: #dc3545; color: #fff; padding: 15px; border-radius: 5px; margin-top: 20px; font-size: 24px; font-weight: bold;">
+                            ${code}
+                        </div>
+                        <p style="color: #888; font-size: 14px; margin-top: 20px;">
+                            Este código é válido por 24 horas.
+                        </p>
+                    </div>
+                </div>
+            `
         };
 
         transporter.sendMail(mailOptions, (error, info) => {
@@ -264,11 +316,16 @@ app.post('/reset-password', async (req, res) => {
         }
 
         const user = rows[0];
+        // Checa se o código já expirou
+        if (new Date() > user.reset_expires_at) {
+            req.session.message = 'Código de redefinição de senha expirado. Por favor, solicite um novo código.';
+            return res.redirect('/forgot-password');
+        }
         const isMatch = await bcrypt.compare(code, user.reset_token);
 
         if (isMatch) {
             const newHashedPassword = await bcrypt.hash(newPassword, 10);
-            await connection.execute('UPDATE users SET password = ?, reset_token = NULL WHERE id = ?', [newHashedPassword, user.id]);
+            await connection.execute('UPDATE users SET password = ?, reset_token = NULL, reset_expires_at = NULL WHERE id = ?', [newHashedPassword, user.id]);
             req.session.message = 'Senha redefinida com sucesso.';
             res.redirect('/');
         } else {
