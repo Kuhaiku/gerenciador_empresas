@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verificar E-mail</title>
+    <link rel="stylesheet" href="/css/global.css">
+    <link rel="stylesheet" href="/css/verify_email.css">
+</head>
+<body>
+    <div class="container">
+        <% if (message) { %>
+            <div class="message-box"><%= message %></div>
+        <% } %>
+        <h2>Verifique seu E-mail</h2>
+        <p>Um código de verificação foi enviado para o seu e-mail.</p>
+        <p>Insira o código abaixo para ativar sua conta.</p>
+        <form action="/verify-email" method="POST">
+            <input type="email" name="email" placeholder="Seu e-mail" required>
+            <input type="text" name="code" placeholder="Código de verificação" required>
+            <button type="submit">Verificar</button>
+        </form>
+        <p><a href="/">Voltar para o Login</a></p>
+    </div>
+</body>
+</html>
