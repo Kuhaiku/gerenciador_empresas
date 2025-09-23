@@ -7,7 +7,7 @@ const nodemailer = require('nodemailer');
 const bodyParser = require('body-parser');
 const session = require('express-session');
 const path = require('path');
-const mercadopago = require('mercadopago');
+const MercadoPago = require('mercadopago');
 
 const app = express();
 const port = 3000;
@@ -49,9 +49,7 @@ const transporter = nodemailer.createTransport({
 });
 
 // Configuração do Mercado Pago
-mercadopago.configure({
-    access_token: process.env.MERCADOPAGO_ACCESS_TOKEN
-});
+const mercadopago = new MercadoPago(process.env.MERCADOPAGO_ACCESS_TOKEN);
 
 // Middlewares
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -387,7 +385,7 @@ app.post('/create-subscription', async (req, res) => {
              req.session.message = 'Você já tem uma assinatura ativa ou pendente.';
              return res.redirect('/dashboard');
         }
-        
+
         const userEmail = req.session.email;
         const subscriptionData = {
             reason: 'Assinatura Mensal - Gerenciador de Empresas',
