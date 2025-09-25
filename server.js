@@ -282,7 +282,7 @@ app.post('/create-subscription', async (req, res) => {
         auto_recurring: {
           frequency: 1,
           frequency_type: 'months',
-          transaction_amount: 60,
+          transaction_amount: 1,
           currency_id: 'BRL',
         },
         payer_email: userEmail,
