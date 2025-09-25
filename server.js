@@ -1,4 +1,4 @@
-// Importações
+// ---------------- IMPORTAÇÕES ----------------
 require('dotenv').config();
 const express = require('express');
 const mysql = require('mysql2/promise');
@@ -7,20 +7,15 @@ const nodemailer = require('nodemailer');
 const bodyParser = require('body-parser');
 const session = require('express-session');
 const path = require('path');
-
-// Mercado Pago (SDK v2)
 const { MercadoPagoConfig, PreApproval } = require('mercadopago');
-const mpClient = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
-const preapproval = new PreApproval(mpClient);
 
+// ---------------- CONFIGURAÇÕES ----------------
 const app = express();
 const port = 3000;
 
-// Configuração do EJS
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// Configurações do banco de dados
 const dbConfig = {
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
@@ -29,19 +24,17 @@ const dbConfig = {
   port: process.env.DB_PORT
 };
 
-// Conexão com o banco de dados
 async function createDBConnection() {
   try {
     const connection = await mysql.createConnection(dbConfig);
-    console.log('Conectado ao banco de dados MySQL.');
+    console.log('Conectado ao MySQL.');
     return connection;
   } catch (error) {
-    console.error('Erro ao conectar com o banco de dados:', error);
+    console.error('Erro ao conectar MySQL:', error);
     throw error;
   }
 }
 
-// Configuração do servidor de e-mail
 const transporter = nodemailer.createTransport({
   host: process.env.EMAIL_HOST,
   port: process.env.EMAIL_PORT,
@@ -52,7 +45,6 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-// Middlewares
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(session({
@@ -61,9 +53,11 @@ app.use(session({
   saveUninitialized: true,
   cookie: { secure: false, maxAge: 3600000 }
 }));
-
-// Arquivos estáticos
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ---------------- MERCADO PAGO ----------------
+const mpClient = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
+const preapproval = new PreApproval(mpClient);
 
 // ---------------- ROTAS PÁGINAS ----------------
 app.get('/', (req, res) => {
@@ -85,22 +79,22 @@ app.get('/verify-email', (req, res) => {
 });
 
 app.get('/dashboard', async (req, res) => {
-  if (req.session.loggedin) {
-    const connection = await createDBConnection();
-    const [rows] = await connection.execute(
-      'SELECT subscription_status FROM users WHERE email = ?', 
-      [req.session.email]
-    );
-    const subscriptionStatus = rows[0] ? rows[0].subscription_status : 'inactive';
-    connection.end();
-
-    const message = req.session.message || null;
-    req.session.message = null;
-    res.render('dashboard', { message, email: req.session.email, subscriptionStatus });
-  } else {
-    req.session.message = 'Você precisa estar logado para acessar o dashboard.';
-    res.redirect('/');
+  if (!req.session.loggedin) {
+    req.session.message = 'Faça login para acessar o dashboard.';
+    return res.redirect('/');
   }
+
+  const connection = await createDBConnection();
+  const [rows] = await connection.execute(
+    'SELECT subscription_status FROM users WHERE email = ?',
+    [req.session.email]
+  );
+  const subscriptionStatus = rows[0] ? rows[0].subscription_status : 'inactive';
+  connection.end();
+
+  const message = req.session.message || null;
+  req.session.message = null;
+  res.render('dashboard', { message, email: req.session.email, subscriptionStatus });
 });
 
 app.get('/forgot-password', (req, res) => {
@@ -117,7 +111,7 @@ app.get('/reset-password', (req, res) => {
 
 app.get('/subscription', (req, res) => {
   if (!req.session.loggedin) {
-    req.session.message = 'Você precisa estar logado para assinar o serviço.';
+    req.session.message = 'Faça login para assinar.';
     return res.redirect('/');
   }
   const message = req.session.message || null;
@@ -125,12 +119,13 @@ app.get('/subscription', (req, res) => {
   res.render('subscription', { message });
 });
 
-// ---------------- ROTAS DE AUTENTICAÇÃO ----------------
+// ---------------- AUTENTICAÇÃO ----------------
 
 // Registro
 app.post('/register', async (req, res) => {
   const { email, password } = req.body;
   const connection = await createDBConnection();
+
   try {
     const [rows] = await connection.execute('SELECT * FROM users WHERE email = ?', [email]);
     if (rows.length > 0) {
@@ -155,13 +150,13 @@ app.post('/register', async (req, res) => {
       html: `<h2>Seu código de verificação</h2><p>${code}</p>`
     };
 
-    transporter.sendMail(mailOptions, (error) => {
-      if (error) {
-        console.log(error);
+    transporter.sendMail(mailOptions, (err) => {
+      if (err) {
+        console.log(err);
         req.session.message = 'Erro ao enviar e-mail.';
         return res.redirect('/register');
       }
-      req.session.message = 'Verifique seu e-mail para ativar sua conta.';
+      req.session.message = 'Verifique seu e-mail para ativar a conta.';
       res.redirect('/verify-email');
     });
   } catch (error) {
@@ -177,6 +172,7 @@ app.post('/register', async (req, res) => {
 app.post('/verify-email', async (req, res) => {
   const { email, code } = req.body;
   const connection = await createDBConnection();
+
   try {
     const [rows] = await connection.execute('SELECT * FROM users WHERE email = ?', [email]);
     if (rows.length === 0) {
@@ -189,8 +185,8 @@ app.post('/verify-email', async (req, res) => {
       req.session.message = 'Código expirado. Registre-se novamente.';
       return res.redirect('/register');
     }
-    const isMatch = await bcrypt.compare(code, user.verification_code);
 
+    const isMatch = await bcrypt.compare(code, user.verification_code);
     if (isMatch) {
       await connection.execute(
         'UPDATE users SET verified = 1, verification_code = NULL, verification_expires_at = NULL WHERE email = ?',
@@ -215,6 +211,7 @@ app.post('/verify-email', async (req, res) => {
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
   const connection = await createDBConnection();
+
   try {
     const [rows] = await connection.execute('SELECT * FROM users WHERE email = ?', [email]);
     if (rows.length === 0) {
@@ -259,14 +256,16 @@ app.get('/logout', (req, res) => {
 
 // Criar assinatura
 app.post('/create-subscription', async (req, res) => {
-  if (!req.session.loggedin) {
+  if (!req.session.loggedin || !req.session.email) {
     req.session.message = 'Faça login para assinar.';
     return res.redirect('/');
   }
+
+  const userEmail = req.session.email;
   const connection = await createDBConnection();
 
   try {
-    const [rows] = await connection.execute('SELECT * FROM users WHERE email = ?', [req.session.email]);
+    const [rows] = await connection.execute('SELECT * FROM users WHERE email = ?', [userEmail]);
     if (rows.length === 0) {
       req.session.message = 'Usuário não encontrado.';
       return res.redirect('/dashboard');
@@ -286,21 +285,20 @@ app.post('/create-subscription', async (req, res) => {
           transaction_amount: 60,
           currency_id: 'BRL',
         },
-        payer_email: req.session.email,
-        back_url: `http://localhost:3000/subscription/success`,
-        status: 'authorized',
+        payer_email: userEmail,
+        back_url: process.env.BASE_URL + '/subscription/success'
       }
     });
 
     await connection.execute(
       'UPDATE users SET subscription_status = ?, mp_preapproval_id = ? WHERE email = ?',
-      ['pending', subscription.id, req.session.email]
+      ['pending', subscription.id, userEmail]
     );
-    req.session.message = 'Redirecionando para Mercado Pago...';
+
     res.redirect(subscription.init_point);
 
-  } catch (error) {
-    console.error('Erro ao criar assinatura:', error);
+  } catch (err) {
+    console.error('Erro ao criar assinatura:', err);
     req.session.message = 'Erro ao criar assinatura.';
     res.redirect('/subscription');
   } finally {
@@ -311,16 +309,15 @@ app.post('/create-subscription', async (req, res) => {
 // Callback de sucesso
 app.get('/subscription/success', async (req, res) => {
   const preapprovalId = req.query.preapproval_id;
+  if (!preapprovalId) {
+    req.session.message = 'ID de assinatura não encontrado.';
+    return res.redirect('/dashboard');
+  }
+
   const connection = await createDBConnection();
 
   try {
-    if (!preapprovalId) {
-      req.session.message = 'ID de assinatura não encontrado.';
-      return res.redirect('/dashboard');
-    }
-
     const subscription = await preapproval.get({ id: preapprovalId });
-
     if (subscription.status === 'authorized') {
       await connection.execute(
         'UPDATE users SET subscription_status = ?, mp_preapproval_id = ? WHERE email = ?',
@@ -328,11 +325,10 @@ app.get('/subscription/success', async (req, res) => {
       );
       req.session.message = 'Assinatura ativada com sucesso!';
     } else {
-      req.session.message = 'Problema com sua assinatura. Tente novamente.';
+      req.session.message = 'Problema na assinatura. Tente novamente.';
     }
-
-  } catch (error) {
-    console.error('Erro ao verificar assinatura:', error);
+  } catch (err) {
+    console.error('Erro ao verificar assinatura:', err);
     req.session.message = 'Erro ao verificar assinatura.';
   } finally {
     connection.end();
