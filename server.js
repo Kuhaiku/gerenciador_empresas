@@ -7,7 +7,8 @@ const nodemailer = require('nodemailer');
 const bodyParser = require('body-parser');
 const session = require('express-session');
 const path = require('path');
-const { MercadoPagoConfig, PreApproval } = require('mercadopago');
+// NOVO: Importação do Stripe
+const stripe = require('stripe');
 
 // ---------------- CONFIGURAÇÕES ----------------
 const app = express();
@@ -55,9 +56,9 @@ app.use(session({
 }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ---------------- MERCADO PAGO ----------------
-const mpClient = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
-const preapproval = new PreApproval(mpClient);
+// ---------------- STRIPE ----------------
+const stripeClient = stripe(process.env.STRIPE_SECRET_KEY);
+const STRIPE_PRICE_ID = process.env.STRIPE_PRICE_ID;
 
 // ---------------- ROTAS PÁGINAS ----------------
 app.get('/', (req, res) => {
@@ -119,7 +120,7 @@ app.get('/subscription', (req, res) => {
   res.render('subscription', { message });
 });
 
-// ---------------- AUTENTICAÇÃO ----------------
+// ---------------- AUTENTICAÇÃO (Sem alterações) ----------------
 
 // Registro
 app.post('/register', async (req, res) => {
@@ -252,9 +253,107 @@ app.get('/logout', (req, res) => {
   });
 });
 
-// ---------------- MERCADO PAGO (ASSINATURA) ----------------
+// Recuperação de Senha - Enviar Código (usando 'reset_token')
+app.post('/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  const connection = await createDBConnection();
 
-// Criar assinatura
+  try {
+    const [rows] = await connection.execute('SELECT * FROM users WHERE email = ?', [email]);
+    if (rows.length === 0) {
+      req.session.message = 'E-mail não encontrado.';
+      return res.redirect('/forgot-password');
+    }
+
+    const user = rows[0];
+    if (!user.verified) {
+      req.session.message = 'Conta não verificada. Por favor, verifique seu e-mail primeiro.';
+      return res.redirect('/forgot-password');
+    }
+
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const resetToken = await bcrypt.hash(code, 10);
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hora de validade
+
+    await connection.execute(
+      'UPDATE users SET reset_token = ?, reset_expires_at = ? WHERE email = ?',
+      [resetToken, expiresAt, email]
+    );
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: 'Código de Recuperação de Senha',
+      html: `<h2>Seu código de recuperação</h2><p>${code}</p><p>Este código é válido por 1 hora.</p>`
+    };
+
+    transporter.sendMail(mailOptions, (err) => {
+      if (err) {
+        console.error(err);
+        req.session.message = 'Erro ao enviar e-mail com código de recuperação.';
+        return res.redirect('/forgot-password');
+      }
+      req.session.message = 'Código de recuperação enviado para o seu e-mail.';
+      res.redirect('/reset-password');
+    });
+
+  } catch (error) {
+    console.error(error);
+    req.session.message = 'Erro no servidor ao solicitar recuperação.';
+    res.redirect('/forgot-password');
+  } finally {
+    connection.end();
+  }
+});
+
+// Redefinir Senha (usando 'reset_token')
+app.post('/reset-password', async (req, res) => {
+  const { email, code, newPassword } = req.body;
+  const connection = await createDBConnection();
+
+  try {
+    const [rows] = await connection.execute('SELECT * FROM users WHERE email = ?', [email]);
+    if (rows.length === 0) {
+      req.session.message = 'E-mail não encontrado.';
+      return res.redirect('/reset-password');
+    }
+
+    const user = rows[0];
+    
+    if (!user.reset_token || new Date() > user.reset_expires_at) {
+      req.session.message = 'Código inválido ou expirado. Tente solicitar um novo código.';
+      return res.redirect('/forgot-password');
+    }
+
+    const isMatch = await bcrypt.compare(code, user.reset_token);
+    
+    if (isMatch) {
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      
+      await connection.execute(
+        'UPDATE users SET password = ?, reset_token = NULL, reset_expires_at = NULL WHERE email = ?',
+        [hashedPassword, email]
+      );
+      
+      req.session.message = 'Senha redefinida com sucesso! Faça login.';
+      res.redirect('/');
+    } else {
+      req.session.message = 'Código inválido.';
+      res.redirect('/reset-password');
+    }
+
+  } catch (error) {
+    console.error(error);
+    req.session.message = 'Erro no servidor ao redefinir senha.';
+    res.redirect('/reset-password');
+  } finally {
+    connection.end();
+  }
+});
+
+
+// ---------------- STRIPE: Criar Checkout Session (Assinatura) ----------------
+
 app.post('/create-subscription', async (req, res) => {
   if (!req.session.loggedin || !req.session.email) {
     req.session.message = 'Faça login para assinar.';
@@ -265,75 +364,104 @@ app.post('/create-subscription', async (req, res) => {
   const connection = await createDBConnection();
 
   try {
-    const [rows] = await connection.execute('SELECT * FROM users WHERE email = ?', [userEmail]);
-    if (rows.length === 0) {
+    const [rows] = await connection.execute(
+      'SELECT stripe_customer_id, subscription_status FROM users WHERE email = ?', 
+      [userEmail]
+    );
+    const user = rows[0];
+
+    if (!user) {
       req.session.message = 'Usuário não encontrado.';
       return res.redirect('/dashboard');
     }
-    const user = rows[0];
-    if (user.subscription_status === 'active' || user.subscription_status === 'pending') {
-      req.session.message = 'Você já tem assinatura ativa ou pendente.';
-      return res.redirect('/dashboard');
-    }
 
-    const subscription = await preapproval.create({
-      body: {
-        reason: 'Assinatura Mensal - Gerenciador de Empresas',
-        auto_recurring: {
-          frequency: 1,
-          frequency_type: 'months',
-          transaction_amount: 1,
-          currency_id: 'BRL',
+    // 1. Obter ou Criar Cliente Stripe
+    let stripeCustomerId = user.stripe_customer_id;
+    if (!stripeCustomerId) {
+      const customer = await stripeClient.customers.create({
+        email: userEmail,
+        metadata: { userId: userEmail }
+      });
+      stripeCustomerId = customer.id;
+
+      // Salvar o novo customer ID no DB
+      await connection.execute(
+        'UPDATE users SET stripe_customer_id = ? WHERE email = ?',
+        [stripeCustomerId, userEmail]
+      );
+    }
+    
+    // 2. Criar a Stripe Checkout Session
+    const session = await stripeClient.checkout.sessions.create({
+      // CORREÇÃO: Usando apenas métodos ativados (cartão e boleto) para evitar o erro de Pix
+      payment_method_types: ['card', 'boleto'], 
+      mode: 'subscription',
+      line_items: [
+        {
+          price: STRIPE_PRICE_ID,
+          quantity: 1,
         },
-        payer_email: userEmail,
-        back_url: process.env.BASE_URL + '/subscription/success'
-      }
+      ],
+      customer: stripeCustomerId,
+      // URL de Sucesso: Retorna para o nosso endpoint para verificar a sessão
+      success_url: process.env.BASE_URL + '/subscription/success?session_id={CHECKOUT_SESSION_ID}',
+      cancel_url: process.env.BASE_URL + '/subscription',
+      locale: 'pt'
     });
 
-    await connection.execute(
-      'UPDATE users SET subscription_status = ?, mp_preapproval_id = ? WHERE email = ?',
-      ['pending', subscription.id, userEmail]
-    );
-
-    res.redirect(subscription.init_point);
+    // 3. Redirecionar para o Checkout do Stripe
+    res.redirect(303, session.url);
 
   } catch (err) {
-    console.error('Erro ao criar assinatura:', err);
-    req.session.message = 'Erro ao criar assinatura.';
+    console.error('Erro ao criar Checkout Session do Stripe:', err);
+    req.session.message = 'Erro ao criar sessão de pagamento.';
     res.redirect('/subscription');
   } finally {
     connection.end();
   }
 });
 
-// Callback de sucesso
+// ---------------- STRIPE: Callback de Sucesso ----------------
+
 app.get('/subscription/success', async (req, res) => {
-  const preapprovalId = req.query.preapproval_id;
-  if (!preapprovalId) {
-    req.session.message = 'ID de assinatura não encontrado.';
-    return res.redirect('/dashboard');
+  if (!req.session.loggedin) {
+    return res.redirect('/');
   }
 
+  const sessionId = req.query.session_id;
   const connection = await createDBConnection();
 
   try {
-    const subscription = await preapproval.get({ id: preapprovalId });
-    if (subscription.status === 'authorized') {
+    // 1. Obter a sessão do Stripe
+    const session = await stripeClient.checkout.sessions.retrieve(sessionId);
+
+    if (session.payment_status === 'paid' && session.mode === 'subscription') {
+      const subscriptionId = session.subscription;
+      
+      // 2. Atualizar o status do usuário no DB
       await connection.execute(
-        'UPDATE users SET subscription_status = ?, mp_preapproval_id = ? WHERE email = ?',
-        ['active', preapprovalId, req.session.email]
+        'UPDATE users SET subscription_status = ?, stripe_subscription_id = ? WHERE email = ?',
+        ['active', subscriptionId, req.session.email]
       );
-      req.session.message = 'Assinatura ativada com sucesso!';
+      
+      req.session.message = 'Assinatura ativada com sucesso! Bem-vindo.';
+    } else if (session.payment_status === 'unpaid' || session.status === 'open') {
+      req.session.message = 'Pagamento pendente. Sua assinatura será ativada em breve.';
     } else {
-      req.session.message = 'Problema na assinatura. Tente novamente.';
+      req.session.message = 'Problema no pagamento. Tente novamente.';
     }
+
   } catch (err) {
-    console.error('Erro ao verificar assinatura:', err);
-    req.session.message = 'Erro ao verificar assinatura.';
+    // Captura qualquer erro de conexão com DB ou Stripe
+    console.error('Erro ao verificar Stripe Session:', err);
+    req.session.message = 'Erro ao finalizar a assinatura.';
   } finally {
+    // SEMPRE FECHA A CONEXÃO
     connection.end();
   }
-  res.redirect('/dashboard');
+  
+  // GARANTE O REDIRECIONAMENTO HTTP APÓS A CONCLUSÃO DA LÓGICA
+  res.redirect('/dashboard'); 
 });
 
 // ---------------- INICIAR SERVIDOR ----------------
