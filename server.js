@@ -7,7 +7,7 @@ const nodemailer = require('nodemailer');
 const bodyParser = require('body-parser');
 const session = require('express-session');
 const path = require('path');
-// NOVO: Importação do Stripe
+// Importação do Stripe
 const stripe = require('stripe');
 
 // ---------------- CONFIGURAÇÕES ----------------
@@ -25,10 +25,10 @@ const dbConfig = {
   port: process.env.DB_PORT
 };
 
+// CORRIGIDO: Função de conexão simplificada
 async function createDBConnection() {
   try {
     const connection = await mysql.createConnection(dbConfig);
-    console.log('Conectado ao MySQL.');
     return connection;
   } catch (error) {
     console.error('Erro ao conectar MySQL:', error);
