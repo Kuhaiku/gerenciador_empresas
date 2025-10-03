@@ -392,8 +392,10 @@ app.post('/create-subscription', async (req, res) => {
     }
     
     // 2. Criar a Stripe Checkout Session
+    // CORREÇÃO DE ROBUSTEZ: Remove a barra final do BASE_URL para evitar a URL dupla (//)
+    const baseUrlWithoutTrailingSlash = process.env.BASE_URL.replace(/\/$/, '');
+
     const session = await stripeClient.checkout.sessions.create({
-      // CORREÇÃO: Usando apenas métodos ativados (cartão e boleto) para evitar o erro de Pix
       payment_method_types: ['card', 'boleto'], 
       mode: 'subscription',
       line_items: [
@@ -403,9 +405,9 @@ app.post('/create-subscription', async (req, res) => {
         },
       ],
       customer: stripeCustomerId,
-      // URL de Sucesso: Retorna para o nosso endpoint para verificar a sessão
-      success_url: process.env.BASE_URL + '/subscription/success?session_id={CHECKOUT_SESSION_ID}',
-      cancel_url: process.env.BASE_URL + '/subscription',
+      // URL de Sucesso: Usa o BASE_URL corrigido
+      success_url: baseUrlWithoutTrailingSlash + '/subscription/success?session_id={CHECKOUT_SESSION_ID}',
+      cancel_url: baseUrlWithoutTrailingSlash + '/subscription',
       locale: 'pt'
     });
 
@@ -452,15 +454,13 @@ app.get('/subscription/success', async (req, res) => {
     }
 
   } catch (err) {
-    // Captura qualquer erro de conexão com DB ou Stripe
     console.error('Erro ao verificar Stripe Session:', err);
     req.session.message = 'Erro ao finalizar a assinatura.';
   } finally {
-    // SEMPRE FECHA A CONEXÃO
     connection.end();
   }
   
-  // GARANTE O REDIRECIONAMENTO HTTP APÓS A CONCLUSÃO DA LÓGICA
+  // GARANTE O REDIRECIONAMENTO PARA O DASHBOARD
   res.redirect('/dashboard'); 
 });
 
