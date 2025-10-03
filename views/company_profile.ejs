@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Perfil de <%= company.name %></title>
+    <link rel="stylesheet" href="/css/global.css">
+    <link rel="stylesheet" href="/css/company_profile.css">
+</head>
+<body>
+    <div class="container profile-container">
+        <% if (message) { %>
+            <div class="message-box"><%= message %></div>
+        <% } %>
+        
+        <h2>Perfil da Empresa: <%= company.name %></h2>
+        
+        <div class="company-info-card">
+            <h3>Detalhes Cadastrais</h3>
+            <p><strong>CNPJ:</strong> <%= company.cnpj %></p>
+            <p><strong>Endereço:</strong> <%= company.address %></p>
+            <p><strong>Telefone:</strong> <%= company.phone %></p>
+            <p><strong>Data de Cadastro:</strong> <%= new Date(company.created_at).toLocaleDateString('pt-BR') %></p>
+        </div>
+
+        <div class="profile-actions">
+            <a href="/company/<%= company.id %>/document/register"><button>+ Novo Documento</button></a>
+            <a href="/company/<%= company.id %>/debt/register"><button>+ Novo Débito</button></a>
+            <a href="/company/<%= company.id %>/observation/register"><button>+ Nova Observação</button></a>
+        </div>
+
+        <hr>
+        
+        <div class="data-section documents-section">
+            <h3>Documentos (Validade)</h3>
+            <p>Implementação futura: Lista de documentos e status de validade.</p>
+        </div>
+        
+        <div class="data-section debts-section">
+            <h3>Débitos (Vencimento)</h3>
+            <p>Implementação futura: Lista de débitos e status de vencimento.</p>
+        </div>
+        
+        <div class="data-section observations-section">
+            <h3>Observações</h3>
+            <p>Implementação futura: Anotações da empresa.</p>
+        </div>
+
+        <p><a href="/dashboard">Voltar para o Dashboard</a></p>
+    </div>
+</body>
+</html>

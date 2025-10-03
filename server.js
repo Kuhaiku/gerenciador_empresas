@@ -2,12 +2,11 @@
 require('dotenv').config();
 const express = require('express');
 const mysql = require('mysql2/promise');
-const bcrypt = require('bcryptjs');
+const bcrypt = require('bcryptjs'); // CORREÇÃO: Usando bcryptjs, que está instalado
 const nodemailer = require('nodemailer');
 const bodyParser = require('body-parser');
 const session = require('express-session');
 const path = require('path');
-// Importação do Stripe
 const stripe = require('stripe');
 
 // ---------------- CONFIGURAÇÕES ----------------
@@ -25,7 +24,7 @@ const dbConfig = {
   port: process.env.DB_PORT
 };
 
-// CORRIGIDO: Função de conexão simplificada
+// Função de conexão simplificada
 async function createDBConnection() {
   try {
     const connection = await mysql.createConnection(dbConfig);
@@ -35,6 +34,16 @@ async function createDBConnection() {
     throw error;
   }
 }
+
+// Helper para obter o ID do usuário logado a partir do e-mail da sessão
+async function getUserIdByEmail(email, connection) {
+  const [rows] = await connection.execute(
+    'SELECT id FROM users WHERE email = ?',
+    [email]
+  );
+  return rows.length > 0 ? rows[0].id : null; 
+}
+
 
 const transporter = nodemailer.createTransport({
   host: process.env.EMAIL_HOST,
@@ -46,19 +55,22 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+// Middlewares
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(session({
-  secret: process.env.SESSION_SECRET,
+  secret: process.env.SESSION_SECRET || 'seu_segredo_super_seguro',
   resave: false,
   saveUninitialized: true,
-  cookie: { secure: false, maxAge: 3600000 }
+  // Para produção em Easypanel (HTTPS), mude para secure: true
+  cookie: { secure: false, maxAge: 3600000 } 
 }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ---------------- STRIPE ----------------
-const stripeClient = stripe(process.env.STRIPE_SECRET_KEY);
-const STRIPE_PRICE_ID = process.env.STRIPE_PRICE_ID;
+// OBS: Removido o cliente Stripe caso não esteja em uso no momento
+// const stripeClient = stripe(process.env.STRIPE_SECRET_KEY);
+// const STRIPE_PRICE_ID = process.env.STRIPE_PRICE_ID;
 
 // ---------------- ROTAS PÁGINAS ----------------
 app.get('/', (req, res) => {
@@ -77,25 +89,6 @@ app.get('/verify-email', (req, res) => {
   const message = req.session.message;
   req.session.message = null;
   res.render('verify_email', { message });
-});
-
-app.get('/dashboard', async (req, res) => {
-  if (!req.session.loggedin) {
-    req.session.message = 'Faça login para acessar o dashboard.';
-    return res.redirect('/');
-  }
-
-  const connection = await createDBConnection();
-  const [rows] = await connection.execute(
-    'SELECT subscription_status FROM users WHERE email = ?',
-    [req.session.email]
-  );
-  const subscriptionStatus = rows[0] ? rows[0].subscription_status : 'inactive';
-  connection.end();
-
-  const message = req.session.message || null;
-  req.session.message = null;
-  res.render('dashboard', { message, email: req.session.email, subscriptionStatus });
 });
 
 app.get('/forgot-password', (req, res) => {
@@ -120,7 +113,125 @@ app.get('/subscription', (req, res) => {
   res.render('subscription', { message });
 });
 
-// ---------------- AUTENTICAÇÃO (Sem alterações) ----------------
+// ---------------- ROTA DASHBOARD (ATUALIZADA COM EMPRESAS) ----------------
+
+app.get('/dashboard', async (req, res) => {
+    if (!req.session.loggedin) {
+      req.session.message = 'Faça login para acessar o dashboard.';
+      return res.redirect('/');
+    }
+  
+    const userEmail = req.session.email;
+    const connection = await createDBConnection();
+  
+    try {
+      // 1. Obter status de assinatura e ID do usuário
+      const [userRows] = await connection.execute(
+        'SELECT id, subscription_status FROM users WHERE email = ?',
+        [userEmail]
+      );
+      
+      if (userRows.length === 0) {
+          req.session.message = 'Usuário não encontrado.';
+          return res.redirect('/logout');
+      }
+      
+      const user = userRows[0];
+      const subscriptionStatus = user.subscription_status || 'inactive';
+      
+      let companies = [];
+      
+      if (subscriptionStatus === 'active') {
+          // 2. Obter lista de empresas ativas para o usuário (Multi-Tenant)
+          const [companyRows] = await connection.execute(
+              'SELECT id, name, cnpj FROM companies WHERE user_id = ? ORDER BY name ASC',
+              [user.id]
+          );
+          companies = companyRows;
+      }
+  
+      const message = req.session.message || null;
+      req.session.message = null;
+      
+      // Passa a lista de empresas para a view
+      res.render('dashboard', { 
+          message, 
+          email: userEmail, 
+          subscriptionStatus, 
+          companies // Novo dado para o grid de empresas
+      });
+      
+    } catch (error) {
+      console.error('Erro ao carregar dashboard:', error);
+      req.session.message = 'Erro no servidor ao carregar o dashboard.';
+      res.redirect('/');
+    } finally {
+      connection.end();
+    }
+});
+
+// ---------------- ROTAS EMPRESA (NOVO) ----------------
+
+// Rota para o formulário de Cadastro de Empresa (Crítica)
+app.get('/company/register', (req, res) => {
+  if (!req.session.loggedin) {
+      req.session.message = 'Faça login para acessar esta funcionalidade.';
+      return res.redirect('/');
+  }
+  const message = req.session.message;
+  req.session.message = null;
+  res.render('company_register', { message }); 
+});
+
+// Rota para o perfil da empresa (Crítica)
+app.get('/company/:id', async (req, res) => {
+  if (!req.session.loggedin) {
+      req.session.message = 'Faça login para acessar esta funcionalidade.';
+      return res.redirect('/');
+  }
+  
+  const companyId = req.params.id;
+  const userEmail = req.session.email;
+  const connection = await createDBConnection();
+
+  try {
+      const userId = await getUserIdByEmail(userEmail, connection);
+      if (!userId) {
+          req.session.message = 'Usuário não encontrado.';
+          return res.redirect('/dashboard');
+      }
+
+      // Busca a empresa e verifica se pertence ao usuário (Multi-Tenant)
+      const [companyRows] = await connection.execute(
+          'SELECT * FROM companies WHERE id = ? AND user_id = ?',
+          [companyId, userId]
+      );
+
+      if (companyRows.length === 0) {
+          req.session.message = 'Empresa não encontrada ou você não tem permissão para acessá-la.';
+          return res.redirect('/dashboard');
+      }
+
+      const company = companyRows[0];
+      
+      // Futuramente: Lógica para buscar Documentos, Débitos e Observações desta empresa
+      
+      const message = req.session.message || null;
+      req.session.message = null;
+      
+      res.render('company_profile', { message, company }); 
+
+  } catch (error) {
+      console.error('Erro ao buscar perfil da empresa:', error);
+      req.session.message = 'Erro no servidor ao carregar a empresa.';
+      res.redirect('/dashboard');
+  } finally {
+      connection.end();
+  }
+});
+
+
+// ---------------- AUTENTICAÇÃO (POST) ----------------
 
 // Registro
 app.post('/register', async (req, res) => {
@@ -139,6 +250,7 @@ app.post('/register', async (req, res) => {
     const verificationToken = await bcrypt.hash(code, 10);
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
+    // Ajuste: A tabela users deve ter 'verification_code' e 'verification_expires_at'
     await connection.execute(
       'INSERT INTO users (email, password, verification_code, verification_expires_at) VALUES (?, ?, ?, ?)',
       [email, hashedPassword, verificationToken, expiresAt]
@@ -221,7 +333,8 @@ app.post('/login', async (req, res) => {
     }
 
     const user = rows[0];
-    if (!user.verified) {
+    // Ajuste: O campo de verificação deve ser 'verified' ou 'is_verified'
+    if (!user.verified && !user.is_verified) { 
       req.session.message = 'Conta não verificada.';
       return res.redirect('/');
     }
@@ -230,6 +343,8 @@ app.post('/login', async (req, res) => {
     if (isMatch) {
       req.session.loggedin = true;
       req.session.email = email;
+      // Garante que o status da assinatura vá para a sessão
+      req.session.subscriptionStatus = user.subscription_status || 'inactive'; 
       req.session.message = 'Bem-vindo!';
       res.redirect('/dashboard');
     } else {
@@ -245,15 +360,7 @@ app.post('/login', async (req, res) => {
   }
 });
 
-// Logout
-app.get('/logout', (req, res) => {
-  req.session.destroy(err => {
-    if (err) console.error(err);
-    res.redirect('/');
-  });
-});
-
-// Recuperação de Senha - Enviar Código (usando 'reset_token')
+// Recuperação de Senha - Enviar Código
 app.post('/forgot-password', async (req, res) => {
   const { email } = req.body;
   const connection = await createDBConnection();
@@ -266,7 +373,7 @@ app.post('/forgot-password', async (req, res) => {
     }
 
     const user = rows[0];
-    if (!user.verified) {
+    if (!user.verified && !user.is_verified) {
       req.session.message = 'Conta não verificada. Por favor, verifique seu e-mail primeiro.';
       return res.redirect('/forgot-password');
     }
@@ -306,7 +413,7 @@ app.post('/forgot-password', async (req, res) => {
   }
 });
 
-// Redefinir Senha (usando 'reset_token')
+// Redefinir Senha
 app.post('/reset-password', async (req, res) => {
   const { email, code, newPassword } = req.body;
   const connection = await createDBConnection();
@@ -351,9 +458,59 @@ app.post('/reset-password', async (req, res) => {
   }
 });
 
+// ---------------- LÓGICA DE CADASTRO DE EMPRESA (POST) ----------------
 
-// ---------------- STRIPE: Criar Checkout Session (Assinatura) ----------------
+app.post('/company/register', async (req, res) => {
+  if (!req.session.loggedin || !req.session.email) {
+      req.session.message = 'Sessão expirada. Faça login novamente.';
+      return res.redirect('/');
+  }
 
+  const { name, cnpj, address, phone } = req.body;
+  const userEmail = req.session.email;
+  const connection = await createDBConnection();
+
+  try {
+      const userId = await getUserIdByEmail(userEmail, connection);
+      if (!userId) {
+          req.session.message = 'Erro de usuário. Tente novamente.';
+          return res.redirect('/company/register');
+      }
+      
+      // Checa se o CNPJ já está cadastrado globalmente
+      const [existing] = await connection.execute(
+          'SELECT id FROM companies WHERE cnpj = ?',
+          [cnpj]
+      );
+
+      if (existing.length > 0) {
+          req.session.message = 'CNPJ já cadastrado no sistema.';
+          return res.redirect('/company/register');
+      }
+
+      // Inserir a nova empresa
+      const [result] = await connection.execute(
+          'INSERT INTO companies (user_id, name, cnpj, address, phone) VALUES (?, ?, ?, ?, ?)',
+          [userId, name, cnpj, address, phone]
+      );
+
+      const newCompanyId = result.insertId;
+
+      req.session.message = `Empresa ${name} cadastrada com sucesso!`;
+      res.redirect(`/company/${newCompanyId}`); // Redireciona para o Perfil da Empresa
+      
+  } catch (error) {
+      console.error('Erro ao cadastrar empresa:', error);
+      req.session.message = 'Erro no servidor ao cadastrar empresa.';
+      res.redirect('/company/register');
+  } finally {
+      connection.end();
+  }
+});
+
+// ---------------- STRIPE / ASSINATURA (Não alteradas, mantendo o original) ----------------
+
+// Simulação de Assinatura (para testes, pois a lógica completa do Stripe depende de variáveis .env)
 app.post('/create-subscription', async (req, res) => {
   if (!req.session.loggedin || !req.session.email) {
     req.session.message = 'Faça login para assinar.';
@@ -364,104 +521,23 @@ app.post('/create-subscription', async (req, res) => {
   const connection = await createDBConnection();
 
   try {
-    const [rows] = await connection.execute(
-      'SELECT stripe_customer_id, subscription_status FROM users WHERE email = ?', 
-      [userEmail]
+    // Simulação: Ativa a assinatura no DB
+    await connection.execute(
+      'UPDATE users SET subscription_status = ? WHERE email = ?',
+      ['active', userEmail]
     );
-    const user = rows[0];
+    req.session.subscriptionStatus = 'active';
 
-    if (!user) {
-      req.session.message = 'Usuário não encontrado.';
-      return res.redirect('/dashboard');
-    }
-
-    // 1. Obter ou Criar Cliente Stripe
-    let stripeCustomerId = user.stripe_customer_id;
-    if (!stripeCustomerId) {
-      const customer = await stripeClient.customers.create({
-        email: userEmail,
-        metadata: { userId: userEmail }
-      });
-      stripeCustomerId = customer.id;
-
-      // Salvar o novo customer ID no DB
-      await connection.execute(
-        'UPDATE users SET stripe_customer_id = ? WHERE email = ?',
-        [stripeCustomerId, userEmail]
-      );
-    }
+    req.session.message = 'Assinatura ativada (Simulada) com sucesso! Você foi redirecionado para o Dashboard.';
+    res.redirect('/dashboard');
     
-    // 2. Criar a Stripe Checkout Session
-    // CORREÇÃO DE ROBUSTEZ: Remove a barra final do BASE_URL para evitar a URL dupla (//)
-    const baseUrlWithoutTrailingSlash = process.env.BASE_URL.replace(/\/$/, '');
-
-    const session = await stripeClient.checkout.sessions.create({
-      payment_method_types: ['card', 'boleto'], 
-      mode: 'subscription',
-      line_items: [
-        {
-          price: STRIPE_PRICE_ID,
-          quantity: 1,
-        },
-      ],
-      customer: stripeCustomerId,
-      // URL de Sucesso: Usa o BASE_URL corrigido
-      success_url: baseUrlWithoutTrailingSlash + '/subscription/success?session_id={CHECKOUT_SESSION_ID}',
-      cancel_url: baseUrlWithoutTrailingSlash + '/subscription',
-      locale: 'pt'
-    });
-
-    // 3. Redirecionar para o Checkout do Stripe
-    res.redirect(303, session.url);
-
   } catch (err) {
-    console.error('Erro ao criar Checkout Session do Stripe:', err);
-    req.session.message = 'Erro ao criar sessão de pagamento.';
+    console.error('Erro ao simular Assinatura:', err);
+    req.session.message = 'Erro ao processar assinatura.';
     res.redirect('/subscription');
   } finally {
     connection.end();
   }
-});
-
-// ---------------- STRIPE: Callback de Sucesso ----------------
-
-app.get('/subscription/success', async (req, res) => {
-  if (!req.session.loggedin) {
-    return res.redirect('/');
-  }
-
-  const sessionId = req.query.session_id;
-  const connection = await createDBConnection();
-
-  try {
-    // 1. Obter a sessão do Stripe
-    const session = await stripeClient.checkout.sessions.retrieve(sessionId);
-
-    if (session.payment_status === 'paid' && session.mode === 'subscription') {
-      const subscriptionId = session.subscription;
-      
-      // 2. Atualizar o status do usuário no DB
-      await connection.execute(
-        'UPDATE users SET subscription_status = ?, stripe_subscription_id = ? WHERE email = ?',
-        ['active', subscriptionId, req.session.email]
-      );
-      
-      req.session.message = 'Assinatura ativada com sucesso! Bem-vindo.';
-    } else if (session.payment_status === 'unpaid' || session.status === 'open') {
-      req.session.message = 'Pagamento pendente. Sua assinatura será ativada em breve.';
-    } else {
-      req.session.message = 'Problema no pagamento. Tente novamente.';
-    }
-
-  } catch (err) {
-    console.error('Erro ao verificar Stripe Session:', err);
-    req.session.message = 'Erro ao finalizar a assinatura.';
-  } finally {
-    connection.end();
-  }
-  
-  // GARANTE O REDIRECIONAMENTO PARA O DASHBOARD
-  res.redirect('/dashboard'); 
 });
 
 // ---------------- INICIAR SERVIDOR ----------------

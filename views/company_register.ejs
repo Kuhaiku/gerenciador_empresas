@@ -1,0 +1,181 @@
+<%
+// Define cores (necessário se usar cores customizadas na view)
+const primaryColor = '#068cf9'; 
+%>
+<!DOCTYPE html>
+<html class="light" lang="pt-br">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Cadastro de Empresa | Gerenciador</title>
+    
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com" rel="preconnect"/>
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&amp;display=swap" rel="stylesheet"/>
+    <script>
+        // Configuração Tailwind personalizada do modelo Stitch
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#068cf9",
+                        "background-light": "#f5f7f8",
+                        "background-dark": "#0f1a23",
+                    },
+                    fontFamily: {
+                        "display": ["Manrope", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+    <style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24
+        }
+        .message-box {
+            background-color: #fcebeb; 
+            color: #cc0000; 
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid #cc0000;
+            text-align: center;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display">
+    <div class="relative flex min-h-screen w-full">
+        
+        <aside class="w-64 bg-white dark:bg-background-dark border-r border-gray-200 dark:border-gray-800 flex flex-col hidden lg:flex">
+            <div class="p-4 border-b border-gray-200 dark:border-gray-800">
+                <div class="flex items-center gap-3">
+                    <div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 bg-primary/30 flex items-center justify-center">
+                        <span class="material-symbols-outlined text-primary">person</span>
+                    </div>
+                    <div class="flex flex-col flex-1 min-w-0"> 
+                        <h1 class="text-gray-900 dark:text-white text-base font-bold">Gerenciador B2B</h1>
+                        <p class="text-gray-500 dark:text-gray-400 text-sm truncate"><%= typeof email !== 'undefined' ? email : 'usuário não logado' %></p>
+                    </div>
+                </div>
+            </div>
+            <nav class="flex-1 p-4 space-y-2">
+                <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800" href="/dashboard">
+                    <span class="material-symbols-outlined">dashboard</span>
+                    <p class="text-sm font-medium">Dashboard</p>
+                </a>
+                <a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/20 text-primary" href="/company/register">
+                    <span class="material-symbols-outlined">add_business</span>
+                    <p class="text-sm font-medium">Cadastrar Empresa</p>
+                </a>
+            </nav>
+            <div class="p-4 border-t border-gray-200 dark:border-gray-800">
+                <a class="w-full flex items-center justify-center rounded-lg h-10 px-4 bg-red-600 text-white text-sm font-bold hover:bg-red-700 transition-colors" href="/logout">
+                    <span class="truncate">Sair</span>
+                </a>
+            </div>
+        </aside>
+        
+        <main class="flex-1 p-6 lg:p-8">
+            <header class="flex items-center justify-between pb-6">
+                <h1 class="text-gray-900 dark:text-white text-3xl font-bold">Cadastro de Empresa</h1>
+                <div class="flex items-center gap-4">
+                    <% if (message) { %>
+                        <div class="hidden lg:flex items-center gap-2 bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300 p-2 rounded-lg text-sm font-medium">
+                            <span class="material-symbols-outlined text-base">info</span>
+                            <%= message %>
+                        </div>
+                    <% } %>
+                    <button class="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800" id="theme-toggle">
+                        <span class="material-symbols-outlined" id="theme-icon">light_mode</span>
+                    </button>
+                </div>
+            </header>
+
+            <% if (message) { %>
+                <div class="message-box lg:hidden"><%= message %></div>
+            <% } %>
+
+            <div class="lg:col-span-1 max-w-lg mx-auto bg-white dark:bg-background-dark p-6 lg:p-8 rounded-xl shadow-lg transition-shadow duration-300 border-t-4 border-primary/70">
+                
+                <h2 class="text-2xl font-semibold text-gray-800 dark:text-gray-200 mb-6 text-center">Cadastre um Novo Cliente</h2>
+                
+                <form action="/company/register" method="POST" class="space-y-5">
+                    
+                    <div>
+                        <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nome da Empresa</label>
+                        <input type="text" id="name" name="name" placeholder="Nome Completo ou Razão Social" required
+                               class="w-full p-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-base focus:ring-primary focus:border-primary shadow-sm">
+                    </div>
+                    
+                    <div>
+                        <label for="cnpj" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">CNPJ (apenas números)</label>
+                        <input type="text" id="cnpj" name="cnpj" placeholder="Ex: 00000000000000" required
+                               class="w-full p-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-base focus:ring-primary focus:border-primary shadow-sm"
+                               pattern="\d{14}"
+                               title="CNPJ deve conter exatamente 14 dígitos (somente números)."
+                               maxlength="14">
+                    </div>
+
+                    <div>
+                        <label for="address" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Endereço Completo</label>
+                        <input type="text" id="address" name="address" placeholder="Rua, Número, Bairro, Cidade - UF" required
+                               class="w-full p-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-base focus:ring-primary focus:border-primary shadow-sm">
+                    </div>
+
+                    <div>
+                        <label for="phone" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Telefone de Contato</label>
+                        <input type="tel" id="phone" name="phone" placeholder="Ex: (99) 99999-9999" required
+                               class="w-full p-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-base focus:ring-primary focus:border-primary shadow-sm">
+                    </div>
+                    
+                    <button type="submit" class="w-full flex items-center justify-center rounded-lg h-12 px-4 bg-primary text-white text-lg font-bold hover:bg-primary/90 transition-colors mt-6 shadow-md">
+                        <span class="material-symbols-outlined mr-2">add_business</span> Cadastrar Empresa
+                    </button>
+                    
+                    <div class="text-center pt-2">
+                         <a href="/dashboard" class="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-primary">
+                            Voltar para o Dashboard
+                        </a>
+                    </div>
+                </form>
+            </div>
+
+        </main>
+    </div>
+    
+    <script>
+        const themeToggle = document.getElementById('theme-toggle');
+        const themeIcon = document.getElementById('theme-icon');
+        const html = document.documentElement;
+
+        function applyTheme(theme) {
+            html.classList.remove('light', 'dark');
+            html.classList.add(theme);
+            themeIcon.textContent = theme === 'light' ? 'light_mode' : 'dark_mode';
+            localStorage.setItem('theme', theme);
+        }
+
+        const systemPreference = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        const savedTheme = localStorage.getItem('theme') || systemPreference;
+        
+        applyTheme(savedTheme);
+
+        themeToggle.addEventListener('click', () => {
+            const currentTheme = html.classList.contains('dark') ? 'dark' : 'light';
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            applyTheme(newTheme);
+        });
+    </script>
+</body>
+</html>

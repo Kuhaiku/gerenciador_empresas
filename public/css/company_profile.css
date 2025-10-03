@@ -1,0 +1,53 @@
+/* public/css/company_profile.css */
+/* Estilos específicos da página de perfil da empresa */
+.profile-container {
+    width: 700px;
+    max-width: 95%;
+    text-align: left;
+}
+
+.company-info-card {
+    border: 1px solid #ddd;
+    padding: 1rem;
+    border-radius: 6px;
+    margin-bottom: 1.5rem;
+    background-color: #f9f9f9;
+}
+
+.company-info-card h3 {
+    border-bottom: 2px solid #007BFF;
+    padding-bottom: 0.5rem;
+    margin-top: 0;
+    margin-bottom: 1rem;
+    color: #007BFF;
+}
+
+.company-info-card p {
+    margin: 0.5rem 0;
+    font-size: 1.05rem;
+}
+
+.profile-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-bottom: 2rem;
+}
+
+.profile-actions button {
+    padding: 1rem 1.5rem;
+    font-weight: bold;
+    background-color: #28a745; 
+    color: white;
+}
+
+.profile-actions button:hover {
+    background-color: #218838;
+}
+
+.data-section {
+    margin-bottom: 2rem;
+    padding: 1rem;
+    border: 1px dashed #ccc;
+    border-radius: 4px;
+}

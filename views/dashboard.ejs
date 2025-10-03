@@ -1,32 +1,327 @@
+<%
+// Configurações EJS para cores, alinhadas com o Tailwind (opcional, mas bom para consistência)
+const primaryColor = '#068cf9'; 
+const redColor = '#FF4D4F'; 
+const yellowColor = '#FAAD14'; 
+const greenColor = '#52C41A'; 
+%>
 <!DOCTYPE html>
-<html lang="pt-br">
+<html class="light" lang="pt-br">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard</title>
-    <link rel="stylesheet" href="/css/global.css">
-    <link rel="stylesheet" href="/css/dashboard.css">
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Dashboard | Gerenciador</title>
+    
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com" rel="preconnect"/>
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&amp;display=swap" rel="stylesheet"/>
+    <script>
+        // Configuração Tailwind personalizada do modelo Stitch
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#068cf9",
+                        "background-light": "#f5f7f8",
+                        "background-dark": "#0f1a23",
+                        "status-red": "#FF4D4F", // Para urgência
+                        "status-yellow": "#FAAD14", // Para atenção
+                        "status-green": "#52C41A", // Para sucesso/ativo
+                    },
+                    fontFamily: {
+                        "display": ["Manrope", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+    <style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24
+        }
+        /* Estilo da caixa de mensagem de erro/sucesso (mantido por segurança) */
+        .message-box {
+            background-color: #fcebeb; 
+            color: #cc0000; 
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid #cc0000;
+            text-align: center;
+            font-weight: 600;
+        }
+    </style>
 </head>
-<body>
-    <div class="container">
-        <% if (message) { %>
-            <div class="message-box"><%= message %></div>
-        <% } %>
-        <h2>Bem-vindo, <%= email %>!</h2>
-        <p>Usuário logado.</p>
+<body class="bg-background-light dark:bg-background-dark font-display">
+    <div class="relative flex min-h-screen w-full">
         
-        <a href="/logout">Sair</a>
-        <hr>
+        <aside class="w-64 bg-white dark:bg-background-dark border-r border-gray-200 dark:border-gray-800 flex flex-col hidden lg:flex">
+            <div class="p-4 border-b border-gray-200 dark:border-gray-800">
+                <div class="flex items-center gap-3">
+                    <div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 bg-primary/30 flex items-center justify-center">
+                        <span class="material-symbols-outlined text-primary">person</span>
+                    </div>
+                    <div class="flex flex-col flex-1 min-w-0"> 
+                        <h1 class="text-gray-900 dark:text-white text-base font-bold">Gerenciador B2B</h1>
+                        <p class="text-gray-500 dark:text-gray-400 text-sm truncate"><%= email %></p>
+                    </div>
+                </div>
+            </div>
+            <nav class="flex-1 p-4 space-y-2">
+                <a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/20 text-primary" href="/dashboard">
+                    <span class="material-symbols-outlined">dashboard</span>
+                    <p class="text-sm font-medium">Dashboard</p>
+                </a>
+                <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800" href="/company/register">
+                    <span class="material-symbols-outlined">add_business</span>
+                    <p class="text-sm font-medium">Cadastrar Empresa</p>
+                </a>
+            </nav>
+            <div class="p-4 border-t border-gray-200 dark:border-gray-800">
+                <a class="w-full flex items-center justify-center rounded-lg h-10 px-4 bg-red-600 text-white text-sm font-bold hover:bg-red-700 transition-colors" href="/logout">
+                    <span class="truncate">Sair</span>
+                </a>
+            </div>
+        </aside>
+        
+        <main class="flex-1 p-6 lg:p-8">
+            <header class="flex items-center justify-between pb-6">
+                <h1 class="text-gray-900 dark:text-white text-3xl font-bold">Dashboard</h1>
+                <div class="flex items-center gap-4">
+                    <% if (message) { %>
+                        <div class="hidden lg:flex items-center gap-2 bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300 p-2 rounded-lg text-sm font-medium">
+                            <span class="material-symbols-outlined text-base">info</span>
+                            <%= message %>
+                        </div>
+                    <% } %>
+                    <button class="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800">
+                        <span class="material-symbols-outlined">notifications</span>
+                    </button>
+                    <button class="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800" id="theme-toggle">
+                        <span class="material-symbols-outlined" id="theme-icon">light_mode</span>
+                    </button>
+                </div>
+            </header>
 
-        <h3>Status da Assinatura</h3>
-        <% if (subscriptionStatus === 'active') { %>
-            <p style="color: green; font-weight: bold;">Plano Ativo! Você já pode gerenciar suas empresas.</p>
-        <% } else { %>
-            <p>Seu plano está inativo.</p>
-            <a href="/subscription">
-                <button>Assinar Agora</button>
-            </a>
-        <% } %>
+            <% if (message) { %>
+                <div class="message-box lg:hidden"><%= message %></div>
+            <% } %>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+                <div class="lg:col-span-1 bg-white dark:bg-background-dark p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300 cursor-pointer flex flex-col justify-center items-center text-center border-t-4 border-primary">
+                    <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200">Total de Clientes</h2>
+                    <p class="text-5xl font-bold text-primary mt-2"><%= companies.length %></p>
+                    <p class="text-gray-500 dark:text-gray-400 text-base font-medium mt-1">Empresas Gerenciadas</p>
+                </div>
+                
+                <div class="lg:col-span-1 bg-white dark:bg-background-dark p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300 cursor-pointer border-t-4 border-status-red/70">
+                    <div class="flex items-start justify-between">
+                        <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200">Documentos Urgentes</h2>
+                        <span class="material-symbols-outlined text-status-red">description</span>
+                    </div>
+                    <div class="mt-4 space-y-3">
+                        <div class="flex items-center gap-3 p-3 rounded-lg bg-red-50 dark:bg-red-900 border border-status-red/50">
+                            <span class="material-symbols-outlined text-status-red">calendar_today</span>
+                            <div class="text-left">
+                                <p class="text-sm font-bold text-gray-800 dark:text-gray-200">Empresa X: Licença Ambiental</p>
+                                <p class="text-xs text-status-red">Expira em 01/10/2025</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3 p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900 border border-status-yellow/50">
+                            <span class="material-symbols-outlined text-status-yellow">calendar_today</span>
+                            <div class="text-left">
+                                <p class="text-sm font-bold text-gray-800 dark:text-gray-200">Empresa Z: Certidão A</p>
+                                <p class="text-xs text-status-yellow">Expira em 15/10/2025</p>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="mt-4 text-right text-sm font-medium text-primary hover:text-primary/80"><a href="#">Ver detalhes (Doc.)</a></p>
+                </div>
+
+                <div class="lg:col-span-1 bg-white dark:bg-background-dark p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300 cursor-pointer border-t-4 border-status-yellow/70">
+                    <div class="flex items-start justify-between">
+                        <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200">Débitos Próximos</h2>
+                        <span class="material-symbols-outlined text-status-yellow">payments</span>
+                    </div>
+                    <div class="mt-4 space-y-3">
+                        <div class="flex items-center justify-between p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900 border border-status-yellow/50">
+                            <div class="text-left">
+                                <p class="text-sm font-bold text-gray-800 dark:text-gray-200">Empresa X: Guia Municipal</p>
+                                <p class="text-xs text-status-yellow">Venc. 10/10/2025</p>
+                            </div>
+                            <span class="text-sm font-bold text-status-yellow">R$ 1.500,00</span>
+                        </div>
+                        <div class="flex items-center justify-between p-3 rounded-lg bg-green-50 dark:bg-green-900 border border-status-green/50">
+                            <div class="text-left">
+                                <p class="text-sm font-bold text-gray-800 dark:text-gray-200">Empresa W: Parcela 5/10</p>
+                                <p class="text-xs text-status-green">Venc. 25/10/2025</p>
+                            </div>
+                            <span class="text-sm font-bold text-status-green">R$ 250,00</span>
+                        </div>
+                    </div>
+                    <p class="mt-4 text-right text-sm font-medium text-primary hover:text-primary/80"><a href="#">Ver detalhes (Déb.)</a></p>
+                </div>
+
+                <div class="lg:col-span-2 bg-white dark:bg-background-dark p-6 rounded-xl shadow-lg transition-shadow duration-300">
+                    <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">Tarefas Prioritárias do Dia</h2>
+                    
+                    <div class="flex gap-2 mb-4">
+                        <input type="text" id="task-input" placeholder="Adicionar nova anotação/tarefa trivial..." class="flex-1 p-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800 text-sm focus:ring-primary focus:border-primary">
+                        <button onclick="addTask()" class="px-4 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors">Adicionar</button>
+                    </div>
+
+                    <div class="space-y-3 max-h-60 overflow-y-auto pr-2" id="task-list">
+                        <div class="flex items-center justify-between p-3 rounded-lg bg-green-50/50 dark:bg-gray-700/50 line-through text-gray-500">
+                            <label class="flex items-center gap-3 cursor-pointer">
+                                <input type="checkbox" checked onchange="toggleTask(this)" class="form-checkbox text-status-green border-gray-300 rounded focus:ring-status-green">
+                                <span class="text-sm font-medium">Revisar e-mail da Empresa Alfa (OK)</span>
+                            </label>
+                        </div>
+                        <div class="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-gray-800/80 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <label class="flex items-center gap-3 cursor-pointer">
+                                <input type="checkbox" onchange="toggleTask(this)" class="form-checkbox text-status-red border-gray-300 rounded focus:ring-status-red">
+                                <span class="text-sm font-medium text-gray-900 dark:text-white">Ligar para Empresa Beta sobre o débito.</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-1 bg-white dark:bg-background-dark p-6 rounded-xl shadow-lg transition-shadow duration-300">
+                    <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">Ações Rápidas</h2>
+                    <div class="space-y-3">
+                        <a class="flex items-center gap-3 p-3 rounded-lg bg-primary/10 dark:bg-primary/20 hover:bg-primary/20 dark:hover:bg-primary/30 transition-colors" href="/company/register">
+                            <span class="material-symbols-outlined text-primary">add_business</span>
+                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Cadastrar Nova Empresa</span>
+                        </a>
+                        <a class="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" href="#">
+                            <span class="material-symbols-outlined text-primary">receipt_long</span>
+                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Cadastrar Documento</span>
+                        </a>
+                        <a class="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" href="#">
+                            <span class="material-symbols-outlined text-primary">add_card</span>
+                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Cadastrar Débito</span>
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="lg:col-span-3 bg-white dark:bg-background-dark p-6 rounded-xl shadow-lg">
+                    <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">Lista de Clientes (Empresas Ativas)</h2>
+                    
+                    <form action="/search-company-status" method="GET" class="flex gap-2 mb-4">
+                        <input type="text" name="companyName" placeholder="Pesquisar por Nome da Empresa..." class="flex-1 p-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800 text-sm focus:ring-primary focus:border-primary">
+                        <button type="submit" class="px-4 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors">Buscar</button>
+                    </form>
+
+                    <div class="overflow-x-auto max-h-96">
+                        <% if (companies.length > 0) { %>
+                            <table class="w-full table-auto">
+                                <thead>
+                                    <tr class="border-b border-gray-200 dark:border-gray-700">
+                                        <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600 dark:text-gray-400">Nome da Empresa</th>
+                                        <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600 dark:text-gray-400 hidden sm:table-cell">CNPJ</th>
+                                        <th class="px-4 py-3 text-left text-sm font-semibold text-gray-600 dark:text-gray-400">Ação</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <% companies.forEach(company => { %>
+                                        <tr class="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                                            <td class="px-4 py-4 text-sm font-medium text-gray-900 dark:text-white"><%= company.name %></td>
+                                            <td class="px-4 py-4 text-sm text-gray-600 dark:text-gray-300 hidden sm:table-cell"><%= company.cnpj %></td>
+                                            <td class="px-4 py-4">
+                                                <a href="/company/<%= company.id %>" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
+                                                    Ver Perfil
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    <% }); %>
+                                </tbody>
+                            </table>
+                        <% } else { %>
+                            <p class="text-center py-6 text-gray-500 dark:text-gray-400">Nenhuma empresa cadastrada. <a href="/company/register" class="text-primary hover:underline font-medium">Cadastre a primeira.</a></p>
+                        <% } %>
+                    </div>
+                </div>
+
+            </div>
+        </main>
     </div>
+    
+    <script>
+        // Lógica de Anotações/Tarefas (Implementação Frontend)
+        const taskList = document.getElementById('task-list');
+        const taskInput = document.getElementById('task-input');
+
+        function addTask() {
+            const taskText = taskInput.value.trim();
+            if (taskText === "") return;
+
+            const newItem = document.createElement('div');
+            newItem.className = "flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-gray-800/80 hover:bg-gray-100 dark:hover:bg-gray-700";
+            newItem.innerHTML = `
+                <label class="flex items-center gap-3 cursor-pointer w-full">
+                    <input type="checkbox" onchange="toggleTask(this)" class="form-checkbox text-status-red border-gray-300 rounded focus:ring-status-red">
+                    <span class="text-sm font-medium text-gray-900 dark:text-white">${taskText}</span>
+                </label>
+            `;
+            // Adiciona a nova tarefa no topo da lista
+            taskList.prepend(newItem); 
+            taskInput.value = '';
+            // Scroll para mostrar o topo (nova tarefa)
+            taskList.scrollTop = 0; 
+            // PH: Aqui seria o ponto para salvar a anotação no servidor
+        }
+
+        // NOVO: Função para marcar e remover a tarefa
+        function toggleTask(checkbox) {
+            const item = checkbox.closest('div');
+            
+            if (checkbox.checked) {
+                // Aplica estilo de feito e inicia a transição para remover
+                item.classList.add('line-through', 'opacity-50', 'transition-opacity', 'bg-green-50/50');
+                
+                setTimeout(() => {
+                    item.remove(); // Remove do DOM
+                    // PH: Aqui seria o ponto para enviar a confirmação de conclusão para o servidor
+                }, 400); // 400ms para dar tempo de ver a marcação
+            } else {
+                // Se for desmarcada (embora a remoção seja imediata na prática)
+                item.classList.remove('line-through', 'opacity-50', 'bg-green-50/50');
+            }
+        }
+
+
+        // Script de Toggle de Tema (Dark/Light)
+        const themeToggle = document.getElementById('theme-toggle');
+        const themeIcon = document.getElementById('theme-icon');
+        const html = document.documentElement;
+
+        function applyTheme(theme) {
+            html.classList.remove('light', 'dark');
+            html.classList.add(theme);
+            themeIcon.textContent = theme === 'light' ? 'light_mode' : 'dark_mode';
+            localStorage.setItem('theme', theme);
+        }
+
+        const systemPreference = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        const savedTheme = localStorage.getItem('theme') || systemPreference;
+        
+        applyTheme(savedTheme);
+
+        themeToggle.addEventListener('click', () => {
+            const currentTheme = html.classList.contains('dark') ? 'dark' : 'light';
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            applyTheme(newTheme);
+        });
+    </script>
 </body>
 </html>
